@@ -6,7 +6,9 @@ Forked from [stable/cockroachdb](https://github.com/helm/charts/tree/master/stab
 
 ## Changes I Made
 
-### 1 add option to enable `hostNetwork` and `ClusterFirstWithHostNet` dns policy. This can be enabled to support cross-cluster deployment Solution #1 described here [Gotchas & Solutions Running a Distributed System Across Kubernetes Clusters](https://www.cockroachlabs.com/blog/experience-report-running-across-multiple-kubernetes-clusters/)
+### 1 add option to enable `hostNetwork`
+
+This can be enabled to support cross-cluster deployment Solution #1 described here [Gotchas & Solutions Running a Distributed System Across Kubernetes Clusters](https://www.cockroachlabs.com/blog/experience-report-running-across-multiple-kubernetes-clusters/)
 
 ```yaml
 {{- if .Values.HostNetwork.Enabled }}
@@ -44,7 +46,16 @@ InitSchema:
   ConfigMapName: cockroachdb.init.schema # put init.sql into this config map
 ```
 
-### 6 add multi-network support [see](https://www.cockroachlabs.com/docs/stable/start-a-node.html#start-a-multi-node-cluster-across-private-networks)
+### 6 add multi-network support 
+
+[start-a-multi-node-cluster-across-private-networks](https://www.cockroachlabs.com/docs/stable/start-a-node.html#start-a-multi-node-cluster-across-private-networks)
+
+```yaml
+MultiNetwork:
+  Enabled: false
+  PublicDomain: ""
+  LocalityTag: ""
+```
 
 ### 7 add backup (to S3) cron job support
 
