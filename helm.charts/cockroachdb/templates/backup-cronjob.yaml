@@ -1,0 +1,97 @@
+{{- if .Values.BackupCronJob.Enabled }}
+apiVersion: batch/v1beta1
+kind: CronJob
+metadata:
+  name: "{{ printf "%s-%s" .Release.Name .Values.Name | trunc 56 }}-backup"
+  labels:
+    heritage: {{.Release.Service | quote }}
+    release: {{.Release.Name | quote }}
+    chart: "{{.Chart.Name}}-{{.Chart.Version}}"
+spec:
+  schedule: "{{ .Values.BackupCronJob.Schedule }}"
+  {{- with .Values.BackupCronJob.ConcurrencyPolicy }}
+  concurrencyPolicy: {{ . }}
+  {{- end }}
+  {{- with .Values.BackupCronJob.FailedJobsHistoryLimit }}
+  failedJobsHistoryLimit: {{ . }}
+  {{- end }}
+  {{- with .Values.BackupCronJob.SuccessfulJobsHistoryLimit }}
+  successfulJobsHistoryLimit: {{ . }}
+  {{- end }}
+  jobTemplate:
+    metadata:
+      labels:
+{{- if and (.Values.NetworkPolicy.Enabled) (not .Values.NetworkPolicy.AllowExternal) }}
+        {{.Release.Name}}-{{.Values.Component}}-client: "true"
+{{- end }}
+        app: {{ template "cockroachdb.fullName" . }}-backup
+        release: {{ .Release.Name }}
+    spec:
+      template:
+        metadata:
+          labels:
+            app: {{ template "cockroachdb.fullName" . }}-backup
+            release: {{ .Release.Name }}
+{{- if .Values.BackupCronJob.Annotations }}
+          annotations:
+{{ toYaml .Values.BackupCronJob.Annotations | indent 12 }}
+{{- end }}
+        spec:
+          volumes:
+        {{- if .Values.Secure.Enabled }}
+            {{- if .Values.Secure.BringYourOwnCert.Enabled }}
+          - name: client-certs
+            secret:
+              secretName: cockroachdb.client.root
+              defaultMode: 256
+            {{- end }}
+        {{- end }}
+          restartPolicy: OnFailure
+          containers:
+          - name: "cockroachdb-backup"
+            image: "{{ .Values.BackupCronJob.Image }}"
+            imagePullPolicy: "{{ .Values.BackupCronJob.ImagePullPolicy }}"
+        {{- if .Values.Secure.Enabled }}
+            {{- if .Values.Secure.BringYourOwnCert.Enabled }}
+            volumeMounts:
+            - name: client-certs
+              mountPath: /cockroach-certs
+            {{- end }}
+        {{- end }}
+            env:
+        {{- if .Values.Secure.Enabled }}
+            {{- if .Values.Secure.BringYourOwnCert.Enabled }}      
+              - name: INSECURE
+                value: "false" 
+            {{- end }}
+        {{- else }}
+              - name: INSECURE
+                value: "true"
+        {{- end }}
+              - name: COCKROACH_DATABASE
+                value: "{{ .Values.BackupCronJob.Database }}"
+              - name: S3_BUCKET
+                value: "{{ .Values.BackupCronJob.S3Bucket }}"
+              - name: COCKROACH_HOST
+                value: "{{ printf "%s-%s" .Release.Name .Values.Name | trunc 56 }}-public.{{ .Release.Namespace }}"
+              {{- range .Values.BackupCronJob.ExtraENVs }}
+              {{- with . }}
+              - name: {{ .name }}
+                value: {{ .value | quote }}
+              {{- end }}
+              {{- end }}
+            resources:
+{{ toYaml .Values.BackupCronJob.Resources | indent 14 }}
+    {{- with .Values.BackupCronJob.NodeSelector }}
+          nodeSelector:
+{{ toYaml . | indent 12 }}
+    {{- end }}
+    {{- with .Values.BackupCronJob.Affinity }}
+          affinity:
+{{ toYaml . | indent 12 }}
+    {{- end }}
+    {{- with .Values.BackupCronJob.Tolerations }}
+          tolerations:
+{{ toYaml . | indent 12 }}
+    {{- end }}
+  {{- end }}

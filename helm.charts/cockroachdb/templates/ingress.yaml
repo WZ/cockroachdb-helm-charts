@@ -1,0 +1,41 @@
+{{- if .Values.Ingress.Enabled -}}
+{{- $fullName := include "cockroachdb.fullName" . -}}
+{{- $publicServiceName := include "cockroachdb.publicServiceName" . -}}
+
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: {{ $fullName }}
+  labels:
+    heritage: {{ .Release.Service | quote }}
+    release: {{ .Release.Name | quote }}
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    component: "{{ .Release.Name }}-{{ .Values.Component }}"
+  {{- with .Values.Ingress.Annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+{{- if .Values.Ingress.Tls }}
+  tls:
+  {{- range .Values.Ingress.Tls }}
+    - hosts:
+      {{- range .hosts }}
+        - {{ . | quote }}
+      {{- end }}
+      {{- if .secretName }}      
+      secretName: {{ .secretName }}
+      {{- end }}      
+  {{- end }}
+{{- end }}
+  rules:
+  {{- range .Values.Ingress.Hosts }}
+    - host: {{ . | quote }}
+      http:
+        paths:
+          - path: /
+            backend:
+              serviceName: {{ $publicServiceName }}
+              servicePort: http
+  {{- end }}
+{{- end }}

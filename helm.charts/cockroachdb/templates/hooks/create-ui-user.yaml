@@ -1,0 +1,60 @@
+{{- if .Values.CreateUIUser.Enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: "{{ printf "%s-%s" .Release.Name .Values.Name | trunc 56 }}-create-ui-user"
+  labels:
+    heritage: {{.Release.Service | quote }}
+    release: {{.Release.Name | quote }}
+    chart: "{{.Chart.Name}}-{{.Chart.Version}}"
+  annotations:
+    "helm.sh/hook": post-install
+    "helm.sh/hook-delete-policy": before-hook-creation
+    "helm.sh/hook-weight": "0"
+spec:
+  template:
+{{- if and (.Values.NetworkPolicy.Enabled) (not .Values.NetworkPolicy.AllowExternal) }}
+    metadata:
+      labels:
+        {{.Release.Name}}-{{.Values.Component}}-client: "true"
+{{- end }}
+    spec:
+      volumes:
+    {{- if .Values.Secure.Enabled }}
+        {{- if .Values.Secure.BringYourOwnCert.Enabled }}
+      - name: client-certs
+        secret:
+          secretName: cockroachdb.client.root
+          defaultMode: 256
+        {{- end }}
+    {{- end }}      
+      containers:
+      - name: "create-ui-user"
+        image: "{{ .Values.Image }}:{{ .Values.ImageTag }}"
+        imagePullPolicy: "{{ .Values.ImagePullPolicy }}"
+    {{- if .Values.Secure.Enabled }}
+        {{- if .Values.Secure.BringYourOwnCert.Enabled }}
+        volumeMounts:
+        - name: client-certs
+          mountPath: /cockroach-certs
+        {{- end }}
+    {{- end }}      
+        command:
+          - "/cockroach/cockroach"
+          - "sql"
+    {{- if .Values.Secure.Enabled }}
+        {{- if .Values.Secure.BringYourOwnCert.Enabled }}      
+          - "--certs-dir"
+          - "/cockroach-certs"
+        {{- end }}
+    {{- else }}
+          - "--insecure"
+    {{- end }}
+          - "--host"
+          - "{{ printf "%s-%s" .Release.Name .Values.Name | trunc 56 }}-public.{{ .Release.Namespace }}"
+          - "--port"
+          - "{{ .Values.ExternalGrpcPort }}"
+          - "-e"
+          - "CREATE USER IF NOT EXISTS {{ .Values.CreateUIUser.User | squote }} WITH PASSWORD {{ if .Values.CreateUIUser.Password }}{{ .Values.CreateUIUser.Password | squote }}{{ else }}{{ randAlphaNum 10 | squote }}{{ end }}; GRANT SELECT ON DATABASE {{ .Values.CreateUIUser.Database }} TO {{ .Values.CreateUIUser.User }}; GRANT SELECT ON TABLE {{ .Values.CreateUIUser.Database }}.* TO {{ .Values.CreateUIUser.User }};"
+      restartPolicy: OnFailure
+{{- end }}

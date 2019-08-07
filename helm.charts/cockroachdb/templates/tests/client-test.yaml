@@ -1,0 +1,39 @@
+{{- if .Values.Secure.Enabled }}
+{{- if .Values.Secure.BringYourOwnCert.Enabled }}
+apiVersion: v1
+kind: Pod
+metadata:
+  name: "{{ printf "%s-%s" .Release.Name .Values.Name | trunc 56 }}-test"
+  annotations:
+    "helm.sh/hook": test-success
+{{- if and (.Values.NetworkPolicy.Enabled) (not .Values.NetworkPolicy.AllowExternal) }}
+  labels:
+    "{{.Release.Name}}-{{.Values.Component}}-client": true
+{{- end }}
+spec:
+  volumes:
+  - name: client-certs
+    secret:
+      secretName: cockroachdb.client.root
+      defaultMode: 256
+  containers:
+  - name: "client-test"
+    image: "{{ .Values.Image }}:{{ .Values.ImageTag }}"
+    imagePullPolicy: "{{ .Values.ImagePullPolicy }}"
+    volumeMounts:
+    - name: client-certs
+      mountPath: /cockroach-certs
+    command:
+      - "/cockroach/cockroach"
+      - "sql"
+      - "--certs-dir"
+      - "/cockroach-certs"
+      - "--host"
+      - "{{ printf "%s-%s" .Release.Name .Values.Name | trunc 56 }}-public.{{ .Release.Namespace }}"
+      - "--port"
+      - "{{ .Values.ExternalGrpcPort }}"
+      - "-e"
+      - "SHOW DATABASES;"
+  restartPolicy: Never
+{{- end }}
+{{- end }}

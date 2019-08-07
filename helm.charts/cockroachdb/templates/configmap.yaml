@@ -1,0 +1,14 @@
+{{- if .Values.LocalityInjection.Enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: "{{ printf "%s-%s-locality-config" .Release.Name .Values.Name | trunc 56 }}"
+  labels:
+    heritage: {{ .Release.Service | quote }}
+    release: {{ .Release.Name | quote }}
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    component: "{{ .Release.Name }}-{{ .Values.Component }}"
+data:
+  locality-injection: |
+    export LOCALITY="cloud={{ .Values.LocalityInjection.CloudProvider }},{{`region={{region}},zone={{az}}`}}"
+{{- end }}
